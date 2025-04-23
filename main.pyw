@@ -59,7 +59,7 @@ NEW_GAME_TIPS = (
 
 # Set up logging configuration
 logging.basicConfig(
-    level=logging.WARNING,
+    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     filename="debug.log",
     filemode="w",  # overwrite on each run
@@ -167,7 +167,7 @@ def runner(console: ConsoleManager) -> None:
                         prior_memory = memory.load_for_session(agent.ctx.loaded_save)
                         if prior_memory:
                             memory_prompt = (
-                                f"System: Resuming campaign. Previous context:\n\n{prior_memory}"
+                                f"System: Hark, Sovereign! Thou dost resume thy campaign. Recall thine past deeds:\n\n{prior_memory}"
                             )
                             llm._add_to_history(role="user", parts=[memory_prompt])
                             log_msg = "Loaded memory summaries into LLM context."
@@ -184,9 +184,9 @@ def runner(console: ConsoleManager) -> None:
                                 f"{agent.ctx.intro_conditions_text.strip()}"
                             ).strip()
                             combined_prompt = (
-                                f"System: Starting a new campaign. Initial Narrative:\n\n"
+                                f"System: Attend, Sovereign! A new reign begins. Behold the chronicle of its birth:\n\n"
                                 f"{intro_narrative}\n\n"
-                                f"Tips for your reign:\n\n{NEW_GAME_TIPS}"
+                                f"Heed this counsel as thou rulest:\n\n{NEW_GAME_TIPS}"
                             )
                             # Add combined context to LLM
                             llm._add_to_history(role="user", parts=[combined_prompt])
@@ -209,7 +209,7 @@ def runner(console: ConsoleManager) -> None:
                         else:
                             # Fallback if narrative capture somehow failed, just add tips
                             logger.warning("Runner: New game started, but intro narrative was not captured by BootTask. Adding only tips.")
-                            tips_prompt = f"System: Starting a new campaign. Tips:\n\n{NEW_GAME_TIPS}"
+                            tips_prompt = f"System: Attend, Sovereign! Though the initial chronicle be lost, heed this counsel:\n\n{NEW_GAME_TIPS}"
                             llm._add_to_history(role="user", parts=[tips_prompt])
                             # --- Add Personality Choice Prompt (Fallback) ---
                             personality_prompt = (
@@ -239,28 +239,28 @@ def runner(console: ConsoleManager) -> None:
 
                 # Order: Long -> Strategic -> Short History -> Recent Raw -> Current Screen
                 if long_summary:
-                    context_parts.append(f"Campaign History Summary:\n{long_summary.strip()}")
+                    context_parts.append(f"The Long Chronicle of Thy Reign:\n{long_summary.strip()}")
                 if strategic_summary:
-                    context_parts.append(f"Strategic Overview:\n{strategic_summary.strip()}")
+                    context_parts.append(f"Thy Grand Strategy and Realm's State:\n{strategic_summary.strip()}")
                 
                 # Add the history of short summaries
                 if short_summaries:
-                    context_parts.append("Recent Short Summaries (Newest Last):")
-                    context_parts.append("--- START SHORT SUMMARIES ---")
+                    context_parts.append("Brief Annals of Recent Times (Newest Last):")
+                    context_parts.append("--- START BRIEF ANNALS ---")
                     # Add summaries numbered for clarity
                     for i, summary in enumerate(short_summaries):
-                         context_parts.append(f"Summary {i+1}:\n{summary.strip()}")
-                    context_parts.append("--- END SHORT SUMMARIES ---")
+                         context_parts.append(f"Annal {i+1}:\n{summary.strip()}")
+                    context_parts.append("--- END BRIEF ANNALS ---")
                 
                 # Add recent raw events
                 if recent_events:
-                    context_parts.append("Recent Events Log (State + Reasoning):")
-                    context_parts.append("--- START RECENT EVENTS ---")
+                    context_parts.append("Recent Occurrences (Observed State & Thy Reasoning):")
+                    context_parts.append("--- START RECENT OCCURRENCES ---")
                     context_parts.extend(recent_events) # Add individual raw events
-                    context_parts.append("--- END RECENT EVENTS ---")
+                    context_parts.append("--- END RECENT OCCURRENCES ---")
                 
                 # Add the current screen buffer last
-                context_parts.append("Current Game Screen:")
+                context_parts.append("Thy Current View of the Realm:")
                 context_parts.append(current_buf.strip())
                 
                 assembled_context = "\n\n".join(context_parts)
