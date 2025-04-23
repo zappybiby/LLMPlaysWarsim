@@ -10,7 +10,7 @@
 - Get Gemini API key (free api key available from Google), and either set it in an .env file or system environment variables.
 ```GOOGLE_API_KEY=KEY_HERE```
 - In Warsim, manually disable ASCII in the settings
-- Have Warsim already running and in the main menu (does not support starting from kingdom menu yet)
+- Have Warsim already running and in the game main menu (does not support starting from kingdom menu yet)
 - Run the pyw script (```pythonw main.pyw```).
 - Note: Make sure the game console is sized so that all text is visible to you. You can resize the font and have the game unfocused without issue, but all lines in the game have to be visible for this to work. 
 
@@ -29,6 +29,4 @@
 ## Infrequently Asked Questions
 - Why autorecruitment?
   - Without proper goal orientation, the LLM would struggle to link things like recruiting or enslaving x amount of people to obtain x battlescore or x income. It would get lost in the numerous settings, and it already spends too much time in the damn reports menu.
-- Don't you work in the veterinary field? What led to you making this?
-  - Roo Code was not impressed with my resume
 
