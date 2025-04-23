@@ -23,9 +23,6 @@
 ## Memory system
 - Partially implemented, details TBD
 
-## FAQ 
-- I have not been asked a single question about this project. 
-
 ## Infrequently Asked Questions
 - Why autorecruitment?
   - Without proper goal orientation, the LLM would struggle to link things like recruiting or enslaving x amount of people to obtain x battlescore or x income. It would get lost in the numerous settings, and it already spends too much time in the damn reports menu.
