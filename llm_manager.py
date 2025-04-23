@@ -95,7 +95,7 @@ class LLMManager:
     """Ensures Gemini produces *one tool call + short reasoning* each turn."""
 
     MAX_RETRIES = 3
-    REFLECTION_INTERVAL = 5 # Trigger reflection every 5 turns
+    REFLECTION_INTERVAL = 20 # Trigger reflection every 20 turns
 
     def __init__(
         self,
