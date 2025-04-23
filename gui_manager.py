@@ -10,8 +10,7 @@ import logging
 import queue
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
-from tkinter import font as tkFont
-from typing import Final, Tuple, List, Dict
+from typing import Final, Tuple, List
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +28,6 @@ DEFAULT_FONT_FAMILY = "Segoe UI"
 LLM_FONT_SIZE = 12
 GENERAL_FONT_SIZE = 11
 LABEL_FONT_SIZE = 10
-MAX_STRATEGIC_FONT_SIZE = 14
-MIN_STRATEGIC_FONT_SIZE = 8
 # Placeholder text
 STRATEGIC_PLACEHOLDER = "(No strategic summary available yet)"
 
@@ -56,8 +53,6 @@ class GuiManager:
         self.llm_q = llm_q
         self.general_q = general_q
         self.strategic_q = strategic_q # Store strategic queue
-        self._font_cache: Dict[int, tkFont.Font] = {}
-        self._last_strategic_font_size: int | None = None # Store last applied size
 
         # --- State for LLM Pane Turn Display ---
         self.current_turn_number: int = 0
@@ -139,7 +134,7 @@ class GuiManager:
             parent=self.root,
             row=1,
             title="Strategic Overview",
-            font=(DEFAULT_FONT_FAMILY, MAX_STRATEGIC_FONT_SIZE), # Starts max, adjusted later
+            font=(DEFAULT_FONT_FAMILY, GENERAL_FONT_SIZE), # Use fixed general font size
             pady=(1, 1)
         )
 
@@ -150,9 +145,6 @@ class GuiManager:
         self.strategic_txt.configure(state="normal")
         self.strategic_txt.insert("1.0", STRATEGIC_PLACEHOLDER, ("default",))
         self.strategic_txt.configure(state="disabled")
-
-        # Bind configure event for dynamic font sizing
-        self.strategic_txt.bind("<Configure>", self._on_strategic_widget_configure)
 
     def _setup_general_pane(self) -> None:
         """Creates and configures the general logs pane."""
@@ -316,104 +308,17 @@ class GuiManager:
 
         # Update only if we actually received a summary from the queue this cycle
         if found_new and latest_summary is not None:
-             # No need to compare with last summary, _update handles content change
+             # Simply update with the latest summary
              self._update_strategic_summary(latest_summary)
 
     def _update_strategic_summary(self, summary: str) -> None:
-        """Update the strategic summary text and adjust font size."""
+        """Update the strategic summary text."""
         widget = self.strategic_txt
         # Use placeholder if summary is empty or whitespace
         display_text = summary.strip() if summary and summary.strip() else STRATEGIC_PLACEHOLDER
 
-        # Avoid unnecessary redraws if content hasn't actually changed
-        current_content = widget.get("1.0", "end-1c")
-        if display_text == current_content:
-             return
-
-        # Use helper to replace content
+        # Simply update the text widget - no content comparison needed
         self._update_text_widget(widget, display_text, replace=True)
-
-        # Adjust font size after inserting text
-        self._adjust_font_size()
-
-    def _on_strategic_widget_configure(self, event=None) -> None:
-        """Callback when the strategic text widget is resized/configured."""
-        # Trigger font size adjustment after a short delay
-        self.root.after(50, self._adjust_font_size)
-
-    def _get_font(self, size: int) -> tkFont.Font:
-        """Gets or creates a font of the specified size, caching it."""
-        if size not in self._font_cache:
-            # Ensure size is within reasonable bounds if needed, though binary search should handle it
-            size = max(MIN_STRATEGIC_FONT_SIZE, min(size, MAX_STRATEGIC_FONT_SIZE))
-            self._font_cache[size] = tkFont.Font(family=DEFAULT_FONT_FAMILY, size=size)
-        return self._font_cache[size]
-
-    def _adjust_font_size(self) -> None:
-        """Adjust font size of strategic summary using binary search and actual rendering."""
-        widget = self.strategic_txt
-        # Get the current content directly from the widget, stripping leading/trailing whitespace
-        text_content = widget.get("1.0", "end-1c").strip()
-
-        # If text is empty or just the placeholder, set to a default (e.g., max) size and return
-        if not text_content or text_content == STRATEGIC_PLACEHOLDER:
-             target_size = MAX_STRATEGIC_FONT_SIZE
-             if self._last_strategic_font_size != target_size:
-                 default_font = self._get_font(target_size)
-                 widget.configure(font=default_font)
-                 self._last_strategic_font_size = target_size
-             return
-
-        # Ensure widget dimensions are available before proceeding
-        widget.update_idletasks() # Ensure geometry and rendering info is up-to-date
-        available_height = widget.winfo_height()
-
-        # Check if the widget has valid dimensions yet
-        if available_height <= 1: # Check only height as width is not used for fitting
-            return
-
-        best_fitting_size = MIN_STRATEGIC_FONT_SIZE # Start assuming the smallest fits
-        low = MIN_STRATEGIC_FONT_SIZE
-        high = MAX_STRATEGIC_FONT_SIZE
-
-        # --- Binary Search for Optimal Font Size ---
-        while low <= high:
-            mid = (low + high) // 2
-            # No need for `if mid < MIN_STRATEGIC_FONT_SIZE` check as low starts at MIN
-            test_font = self._get_font(mid)
-
-            # Apply the candidate font and force layout update to measure
-            widget.configure(font=test_font)
-            widget.update_idletasks()
-
-            # Measure the actual rendered height using bbox on the last character
-            # bbox gives (x, y, width, height) of the character's bounding box
-            bbox = widget.bbox("end-1c")
-
-            measured_height = 0
-            if bbox:
-                # The y-coordinate plus height gives the bottom edge of the last character's bounding box
-                measured_height = bbox[1] + bbox[3]
-            else:
-                return # Exit the adjustment; will retry on next Configure event
-
-            # --- Check if the measured height fits within the available height ---
-            # Add a small tolerance (e.g., 1-2 pixels) if needed, but often direct comparison works
-            tolerance = 1
-            if measured_height <= (available_height - tolerance): # It fits
-                best_fitting_size = mid # This size is a candidate for the best fit
-                low = mid + 1 # Try larger sizes
-            else: # It does not fit
-                high = mid - 1 # Need to try smaller sizes
-        # --- End Binary Search ---
-
-        # Apply the best fitting font size found, only if it changed from the last applied size
-        if best_fitting_size != self._last_strategic_font_size:
-             final_font = self._get_font(best_fitting_size)
-             widget.configure(font=final_font)
-             self._last_strategic_font_size = best_fitting_size # Update last applied size
-        else:
-             pass # Size unchanged, no need to log unless debugging
 
     def start(self) -> None:
         """Start the Tkinter main loop."""
