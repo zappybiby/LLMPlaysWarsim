@@ -5,7 +5,7 @@
 # LLMPlaysWarsim
  LLM Plays Warsim uses Google Gen AI SDK to interact with the game Warsim.
 
-# Quickstart
+## Quickstart
 - Clone project, install requirements. Python 3.9+ Needed, Windows 10+ needed
 - Get Gemini API key (free api key available from Google), and either set it in an .env file or system environment variables.
 ```GOOGLE_API_KEY=KEY_HERE```
@@ -13,9 +13,16 @@
 - Have Warsim already running
 - Run the pyw script (```pythonw main.pyw```).
 
-# What this does
+## What this does
 - Looks for existing save game (default LLMSave.txt), if it does not exist, quickstarts new game, enables autorecruitment, then passes off to LLM.
 - Agent, which automates tasks outside of the LLM, handles things like saving, loading.
 
-Memory system
+## Memory system
 - Partially implemented, details TBD
+
+## FAQ 
+- I have not been asked a single qeuestion about this project.
+
+## Infrequently Asked Questions
+- Why autorecruitment?
+- Without proper goal orientation, the LLM would struggle to link things like recruiting or enslaving x amount of people to obtain x battlescore or x income. It would get lost in the numerous settings, and it already spends too much time in the damn reports menu.
