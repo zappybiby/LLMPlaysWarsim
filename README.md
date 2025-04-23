@@ -1,0 +1,2 @@
+# LLMPlaysWarsim
+ LLM Plays Warsim

@@ -1,0 +1,4 @@
+protobuf
+google-genai 
+psutil
+python-dotenv
