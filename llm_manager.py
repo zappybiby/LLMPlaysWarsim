@@ -18,12 +18,12 @@ from input_manager import send_number, send_text
 # Public helper tools (exposed to Gemini)
 # ---------------------------------------------------------------------------
 
-def send_number_tool(number: int, reasoning: str) -> Dict[str, str]:  # noqa: D401
+def send_number_tool(number: int, reasoning: str) -> Dict[str, str]:
     """Choose a numeric menu option (auto‑*Enter*)."""
     return {"status": "success", "action": f"Sent number {number}"}
 
 
-def send_text_tool(text: str, reasoning: str) -> Dict[str, str]:  # noqa: D401
+def send_text_tool(text: str, reasoning: str) -> Dict[str, str]:
     """Send free‑form text (auto‑*Enter*)."""
     truncated = text[:50] + ("…" if len(text) > 50 else "")
     return {"status": "success", "action": f"Sent text: '{truncated}'"}
@@ -121,7 +121,7 @@ class LLMManager:
             maxlen=self.REFLECTION_INTERVAL
         ) # Stores (state, reasoning, action_str)
 
-    def step(self, context: str) -> None:  # noqa: C901 – linear but long
+    def step(self, context: str) -> None: 
         """Run one game turn: reflect or call Gemini, validate, execute, record."""
         self.action_taken_this_turn = False # Reset flag each step
         self._last_context_buffer = context # Store context for potential history add

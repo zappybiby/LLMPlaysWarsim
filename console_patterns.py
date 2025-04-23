@@ -8,3 +8,5 @@ KINGDOM_MENU_RE  = re.compile(r"KINGDOM MENU", re.I)
 AUTORECRUIT_SETUP_PROMPT_RE = re.compile(r"automate the automation for me!", re.I | re.S)
 # Pattern to detect the screen shown when auto-recruit is ON
 AUTORECRUIT_ALREADY_ON_RE = re.compile(r"already recruiting automatically", re.I | re.S)
+# Pattern to detect the start of an arena fight (e.g., "  Knight vs. Bandit")
+ARENA_FIGHT_START_RE = re.compile(r"^\s+\S+\s+vs\.\s+\S+", re.I)

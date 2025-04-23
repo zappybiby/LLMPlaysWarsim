@@ -56,6 +56,7 @@ class AgentContext:
         self.loaded_save: bool = False
         self.in_kingdom_menu: bool = False
         self.needs_save: bool = False
+        self.in_arena_fight: bool = False # NEW: Flag for active arena fight
         # Narrative capture for new games
         self.intro_origin_text: str = ""
         self.intro_conditions_text: str = ""
@@ -65,6 +66,7 @@ class AgentContext:
 class TaskState(Enum):
     ACTIVE = auto()
     DONE = auto()
+    WAITING = auto() # Add a WAITING state for tasks like Arena
 
 
 class Task:  # pylint: disable=too-few-public-methods
@@ -72,11 +74,15 @@ class Task:  # pylint: disable=too-few-public-methods
 
     def __init__(self, ctx: AgentContext, mem: MemoryManager, gen_q: queue.Queue):
         self.ctx, self.mem, self.gen_q = ctx, mem, gen_q
-        self.state = TaskState.ACTIVE
+        self.state = TaskState.ACTIVE # Default state
 
     # Sub‑classes must implement
     def feed(self, txt: str) -> None:  # noqa: D401 we are *not* a property
         raise NotImplementedError
+
+    # Optional reset for tasks that can run multiple times
+    def reset(self) -> None:
+        pass
 
 
 # ───────────────────────────── BootTask ───────────────────────────────
@@ -306,6 +312,69 @@ class SaveTask(Task):
             self.state = TaskState.DONE
             self.gen_q.put("TASK: Save – Sequence complete.")
 
+    def reset(self) -> None:
+        """Reset SaveTask to wait for the next save request."""
+        self.state = TaskState.ACTIVE # SaveTask is always active/waiting
+        self.s = SaveState.WAIT
+
+
+# ───────────────────────────── ArenaTask ──────────────────────────────
+class ArenaState(Enum):
+    WAITING_FOR_FIGHT = auto()
+    FIGHTING = auto()
+    FIGHT_OVER = auto()
+
+class ArenaTask(Task):
+    """Automates 'press any key' during arena fights."""
+
+    def __init__(self, ctx: AgentContext, mem: MemoryManager, gen_q: queue.Queue):
+        super().__init__(ctx, mem, gen_q)
+        self.state = TaskState.WAITING # Start in waiting state
+        self.s = ArenaState.WAITING_FOR_FIGHT
+
+    def feed(self, txt: str) -> None:
+        if self.state is TaskState.DONE:
+            return
+
+        # --- State Machine ---
+        if self.s is ArenaState.WAITING_FOR_FIGHT:
+            # Check only the first line for the fight start pattern
+            first_line = txt.split('\\n', 1)[0]
+            if pat.ARENA_FIGHT_START_RE.search(first_line):
+                self.gen_q.put("TASK: Arena – Fight detected. Taking control...")
+                self.ctx.in_arena_fight = True
+                self.state = TaskState.ACTIVE # Mark as active *during* the fight
+                self.s = ArenaState.FIGHTING
+                _send_key() # Press key to start the fight sequence
+
+        elif self.s is ArenaState.FIGHTING:
+            if pat.PRESS_ANY_KEY_RE.search(txt):
+                # Check if the kingdom menu is also present (fight ended)
+                if pat.KINGDOM_MENU_RE.search(txt):
+                    self.gen_q.put("TASK: Arena – Fight finished. Returning control.")
+                    self.ctx.in_arena_fight = False
+                    self.s = ArenaState.FIGHT_OVER
+                    self.state = TaskState.DONE # Mark as done until reset
+                    _send_key() # Final key press to dismiss the win/loss screen
+                else:
+                    # Fight still ongoing, press key to continue
+                    _send_key()
+            # If no "press any key" but kingdom menu appears, something went wrong, exit
+            elif pat.KINGDOM_MENU_RE.search(txt):
+                 self.gen_q.put("WARN: Arena – Kingdom menu detected unexpectedly during fight. Ending task.")
+                 self.ctx.in_arena_fight = False
+                 self.s = ArenaState.FIGHT_OVER
+                 self.state = TaskState.DONE # Mark as done
+
+        # FIGHT_OVER state doesn't need active handling in feed
+
+    def reset(self) -> None:
+        """Reset the task to wait for the next fight."""
+        self.state = TaskState.WAITING
+        self.s = ArenaState.WAITING_FOR_FIGHT
+        self.ctx.in_arena_fight = False # Ensure flag is reset
+        self.gen_q.put("TASK: Arena – Reset. Waiting for next fight.")
+
 
 # ───────────────────────────── CoreAgent ──────────────────────────────
 class CoreAgent:
@@ -315,25 +384,63 @@ class CoreAgent:
         self.ctx = AgentContext(save_name)
         self.mem = memory
         self.gen_q = gen_q
-        self.tasks: List[Task] = []  # Initialize empty
+        self.tasks: List[Task] = []
+        # Order matters for priority: Boot > Save > Arena
         self.tasks.append(BootTask(self.ctx, memory, gen_q))
         self.tasks.append(SaveTask(self.ctx, memory, gen_q))
+        self.tasks.append(ArenaTask(self.ctx, memory, gen_q)) # Add ArenaTask
         self.gen_q.put("AGENT: CoreAgent initialized.")
 
     # ── public API ──
     def feed(self, buf: str) -> None:
-        # Update kingdom‑menu flag only on transition to curb spam
+        # --- Update Kingdom Menu Flag ---
         in_menu = bool(pat.KINGDOM_MENU_RE.search(buf))
         if in_menu != self.ctx.in_kingdom_menu:
             self.ctx.in_kingdom_menu = in_menu
-            self.gen_q.put("AGENT: " + ("Entered" if in_menu else "Exited") + " Kingdom Menu.")
+            status = "Entered" if in_menu else "Exited"
+            if not self.ctx.in_arena_fight: # Avoid logging menu exit during fight end
+                self.gen_q.put(f"AGENT: {status} Kingdom Menu.")
 
-        for task in self.tasks:
-            if task.state is TaskState.ACTIVE:
-                task.feed(buf)
-                break
+        # --- Task Reset Logic ---
+        # Reset SaveTask if it finished and a new save is needed
+        save_task = next((t for t in self.tasks if isinstance(t, SaveTask)), None)
+        if save_task and save_task.state is TaskState.DONE and self.ctx.needs_save:
+            save_task.reset()
+
+        # Reset ArenaTask if it finished
+        arena_task = next((t for t in self.tasks if isinstance(t, ArenaTask)), None)
+        if arena_task and arena_task.state is TaskState.DONE:
+            arena_task.reset() # Reset puts it back to WAITING state
+
+        # --- Task Feeding Logic (Priority Order) ---
+        processed = False
+        # 1. BootTask (Highest priority)
+        boot_task = next((t for t in self.tasks if isinstance(t, BootTask)), None)
+        if boot_task and boot_task.state is TaskState.ACTIVE:
+            boot_task.feed(buf)
+            processed = True
+
+        # 2. SaveTask (If active and needed)
+        if not processed and save_task and save_task.state is TaskState.ACTIVE and self.ctx.needs_save:
+             # SaveTask internally checks if it should run based on menu state + needs_save
+             save_task.feed(buf)
+             # We don't set processed=True here, as SaveTask might just be waiting for the menu
+
+        # 3. ArenaTask (If waiting or active)
+        if not processed and arena_task and arena_task.state in (TaskState.WAITING, TaskState.ACTIVE):
+            arena_task.feed(buf)
+            # If ArenaTask became active or was already active, it processed the buffer
+            if arena_task.state is TaskState.ACTIVE:
+                 processed = True
+
+        # If no priority task handled the buffer, it might be for the LLM later
+        # (LLM interaction is handled in the main runner loop based on ready_for_llm)
 
     @property
     def ready_for_llm(self) -> bool:
-        """True once `BootTask` is DONE and the game is at free‑play."""
-        return any(isinstance(t, BootTask) and t.state is TaskState.DONE for t in self.tasks)
+        """True once BootTask is DONE, not in an arena fight, and game is at free‑play."""
+        boot_done = any(isinstance(t, BootTask) and t.state is TaskState.DONE for t in self.tasks)
+        arena_active = self.ctx.in_arena_fight # Use the context flag
+
+        # LLM is ready only if boot is done AND we are not in an arena fight
+        return boot_done and not arena_active

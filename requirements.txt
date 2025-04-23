@@ -2,3 +2,4 @@ protobuf
 google-genai 
 psutil
 python-dotenv
+pywin32
